@@ -1,4 +1,5 @@
 import requests
+import time 
 import json, yaml
 import csv
 from urllib.parse import parse_qs
@@ -12,6 +13,7 @@ DELAY_TIME = 5
 # END_TIME = datetime.now() + timedelta(minutes=10)
 last_file_creation_time = datetime.now()
 FILENAME_TEMPLATE = 'prices_{timestamp}.csv'
+TIME_INTERVAL = 10
 
 def get_new_filename():
     """Generates a new filename based on the current timestamp."""
@@ -22,7 +24,7 @@ def update_binance_ticker(prices: dict):
     global last_file_creation_time
     while True:
         current_time = datetime.now()
-        if current_time - last_file_creation_time >= timedelta(minutes=1):
+        if current_time - last_file_creation_time >= timedelta(minutes=TIME_INTERVAL):
             filename = get_new_filename()
             last_file_creation_time = current_time
         else:
@@ -33,7 +35,7 @@ def update_binance_ticker(prices: dict):
             prices["Binance"] = float(binance_price["price"])
             with open(filename, 'a', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(["Binance", prices["Binance"], datetime.now()])
+                writer.writerow(["Binance", prices["Binance"], current_time])
         except Exception as e:
             print(f"Error in update_binance_ticker: {e}")
         finally:
@@ -43,7 +45,7 @@ def update_kucoin_ticker(prices: dict):
     global last_file_creation_time
     while True:
         current_time = datetime.now()
-        if current_time - last_file_creation_time >= timedelta(minutes=1):
+        if current_time - last_file_creation_time >= timedelta(minutes=TIME_INTERVAL):
             filename = get_new_filename()
             last_file_creation_time = current_time
         else:
@@ -54,11 +56,42 @@ def update_kucoin_ticker(prices: dict):
             prices["Kucoin"] = float(kucoin_price["data"]["last"])
             with open(filename, 'a', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(["Kucoin", prices["Kucoin"], datetime.now()])
+                writer.writerow(["Kucoin", prices["Kucoin"], current_time])
         except Exception as e:
             print(f"Error in update_kucoin_ticker: {e}")
         finally:
             sleep(DELAY_TIME)
+    
+def update_wazirx_ticker(prices: dict):
+    while True:
+        try:
+            wazirx_price = fetch_data("https://api.wazirx.com/sapi/v1/ticker/24hr?symbol=ethbtc")
+            prices["Wazirx"] = float(wazirx_price["lastPrice"])
+        except:
+            pass
+        finally:
+            sleep(DELAY_TIME)
+
+def update_coinhar_ticker(prices: dict):
+    while True:
+        try:
+            coinhar_price = fetch_data("https://api.coinhar.io/api/v3/ticker?symbol=ETHBTC")
+            prices["Coinhar"] = float(coinhar_price["price"])
+        except:
+            pass
+        finally:
+            sleep(DELAY_TIME)
+
+def update_indodax_ticker(prices: dict):
+    while True:
+        try:
+            indodax_eth_price = fetch_data("https://indodax.com/api/ticker/ethidr")
+            indodax_btc_price = fetch_data("https://indodax.com/api/ticker/btcidr")
+            prices["Indodax"] = float(indodax_eth_price["ticker"]["sell"]) / float(indodax_btc_price["ticker"]["buy"])
+        except:
+            pass
+        finally:
+            sleep(DELAY_TIME)   
 
 def fetch_data(url: str):
     resp = requests.get(url, timeout=10)
@@ -129,6 +162,12 @@ def main():
     binance_worker.start()
     kucoin_worker = Thread(target=update_kucoin_ticker, args=(prices,))
     kucoin_worker.start()
+    wazirx_worker = Thread(target=update_wazirx_ticker, args=(prices,))
+    wazirx_worker.start()
+    coinhar_worker = Thread(target=update_coinhar_ticker, args=(prices,))
+    coinhar_worker.start()
+    indodax_worker = Thread(target=update_indodax_ticker, args=(prices,))
+    indodax_worker.start()
 
     calculate_average_price(prices)
 
