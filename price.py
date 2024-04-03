@@ -1,31 +1,40 @@
 import requests
 import json, yaml
+import csv
 from urllib.parse import parse_qs
 from threading import Thread
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 
 requests.urllib3.disable_warnings()
 
 DELAY_TIME = 5
+END_TIME = datetime.now() + timedelta(minutes=10)
+FILENAME = f'prices_{datetime.now().strftime("%Y%m%d%H%M%S")}.csv'
 
 def update_binance_ticker(prices: dict):
-    while True:
+    while datetime.now() < END_TIME:
         try:
             binance_price = fetch_data("https://api.binance.com/api/v3/ticker/price?symbol=ETHBTC")
             prices["Binance"] = float(binance_price["price"])
-        except:
-            pass
+            with open(FILENAME, 'a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["Binance", prices["Binance"], datetime.now()])
+        except Exception as e:
+            print(f"Error in update_binance_ticker: {e}")
 
         sleep(DELAY_TIME)
 
 def update_kucoin_ticker(prices: dict):
-    while True:
-        try:
-            kucoin_price = fetch_data("https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC")
-            prices["Kucoin"] = float(kucoin_price["data"]["last"])
-        except:
-            pass
+        while datetime.now() < END_TIME:
+            try:
+                kucoin_price = fetch_data("https://api.kucoin.com/api/v1/market/stats?symbol=ETH-BTC")
+                prices["Kucoin"] = float(kucoin_price["data"]["last"])
+                with open(FILENAME, 'a', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(["Kucoin", prices["Kucoin"], datetime.now()])
+            except Exception as e:
+                print(f"Error in update_kucoin_ticker: {e}")
 
         sleep(DELAY_TIME)
 
@@ -75,6 +84,8 @@ def fetch_data(url: str):
     
     elif content_type.startswith("application/yaml"):
         return yaml.load(resp.text, Loader=yaml.Loader)
+    else:
+        print(resp.text)
 
 def calculate_average_price(prices: dict):
     print("ETH/BTC Rate History")
